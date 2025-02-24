@@ -243,12 +243,16 @@ class RTDE(object):
                 more = self.__sock.recv(4096)
                 if len(more) == 0:
                     self.__trigger_disconnected()
+                    print("HEEEEEEEEE")
                     return None
                 self.__buf = self.__buf + more
 
             if len(xlist) or len(readable) == 0: # Effectively a timeout of DEFAULT_TIMEOUT seconds
+                print(len(xlist))
+                print(len(readable))
                 _log.info('lost connection with controller')
                 self.__trigger_disconnected()
+                print("HERE")
                 return None
 
             # unpack_from requires a buffer of at least 3 bytes
@@ -281,6 +285,7 @@ class RTDE(object):
             _log.error('RTDE_REQUEST_PROTOCOL_VERSION: Wrong payload size')
             return None
         result = serialize.ReturnValue.unpack(payload)
+        print(result)
         return result.success
 
     def __unpack_urcontrol_version_package(self, payload):
@@ -308,6 +313,7 @@ class RTDE(object):
             _log.error('RTDE_CONTROL_PACKAGE_SETUP_OUTPUTS: No payload')
             return None
         output_config = serialize.DataConfig.unpack_recipe(payload)
+        print(f"Got output config: {output_config}")
         return output_config
 
     def __unpack_setup_inputs_package(self, payload):

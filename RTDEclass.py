@@ -10,7 +10,7 @@ from threading import Thread
 import time
 
 class RTDE_urx(object):
-    def __init__(self, ROBOT_HOST='192.168.68.23',
+    def __init__(self, ROBOT_HOST='127.0.0.1',
                  ROBOT_PORT=30004,
                  config_filename='control_loop_configuration.xml'):
 
@@ -21,7 +21,7 @@ class RTDE_urx(object):
         state_names, state_types = conf.get_recipe('state')
         setp_names, setp_types = conf.get_recipe('setp')
         watchdog_names, watchdog_types = conf.get_recipe('watchdog')
-        gripper_names, gripper_types = conf.get_recipe("gripper")
+        # gripper_names, gripper_types = conf.get_recipe("gripper")
 
         self.con = rtde.RTDE(ROBOT_HOST, ROBOT_PORT)
         self.con.connect()
@@ -32,8 +32,8 @@ class RTDE_urx(object):
         # setup recipes
         self.con.send_output_setup(state_names, state_types)
         self.setp = self.con.send_input_setup(setp_names, setp_types)
-        self.watchdog = self.con.send_input_setup(watchdog_names, watchdog_types)
-        self.gripper = self.con.send_input_setup(gripper_names, gripper_types)
+        # self.watchdog = self.con.send_input_setup(watchdog_names, watchdog_types)
+        # self.gripper = self.con.send_input_setup(gripper_names, gripper_types)
         ### Initialize variables of the register
         self.initialize()
 
@@ -48,8 +48,8 @@ class RTDE_urx(object):
         self.setp.input_double_register_3 = 0
         self.setp.input_double_register_4 = 0
         self.setp.input_double_register_5 = 0
-        self.gripper.input_int_register_1 = 0
-        self.watchdog.input_int_register_0 = 0
+        # self.gripper.input_int_register_1 = 0
+        # self.watchdog.input_int_register_0 = 0
 
     def setp_to_list(self):
         list = []
@@ -73,10 +73,21 @@ class RTDE_urx(object):
         actual_tcp_pose[3:], target[3:] = np.abs(actual_tcp_pose[3:]), np.abs(target[3:])   # Angles are taken positves
         deltapose = actual_tcp_pose - np.array(target)
         distance = (deltapose[:]*deltapose[:]).sum()
-        if distance < 0.02:
+        if distance < 0.02*2:
             return True
         else:
             return False
+
+
+    def moveJoint(self, joint_states):
+        """Move the robot based on the given joint states. This function call is non-blocking.
+
+        Args:
+            joint_states (list[float, float, float, float, float, float]): Requested joint states
+        """
+        print("Target joint states", joint_states)
+        self.list_to_setp(joint_states)
+        self.con.send(self.setp)
 
     def movel(self, pos):
         '''
@@ -91,15 +102,15 @@ class RTDE_urx(object):
             if self.wait(pos):
                 break
 
-    def open_gripper(self):
-        self.gripper.input_int_register_1 = 2
-        self.con.send(self.gripper)
-        time.sleep(2)
+    # def open_gripper(self):
+    #     self.gripper.input_int_register_1 = 2
+    #     self.con.send(self.gripper)
+    #     time.sleep(2)
 
-    def close_gripper(self):
-        self.gripper.input_int_register_1 = 1
-        self.con.send(self.gripper)
-        time.sleep(2)
+    # def close_gripper(self):
+    #     self.gripper.input_int_register_1 = 1
+    #     self.con.send(self.gripper)
+    #     time.sleep(2)
 
     def angle_antipodal_grasp(self, ang):
         '''
@@ -118,40 +129,37 @@ class RTDE_urx(object):
         return tool_orientation
 
 class KeepAlive(Thread):
-    def __init__(self, con, watchdog):
+    def __init__(self, con):
         super().__init__()
         self.con = con
-        self.watchdog = watchdog
         self.daemon = True
 
     def run(self):
         while True:
             state = self.con.receive()
-            self.con.send(self.watchdog)
             time.sleep(0.1)
 
 if __name__=="__main__":
     robot = RTDE_urx()
-    test = KeepAlive(robot.con, robot.watchdog)
+    test = KeepAlive(robot.con)
     test.start()
-    robot.open_gripper()
+    # robot.open_gripper()
     ang = 100
     angle = robot.angle_antipodal_grasp(ang)
-
     while True:
-        robot.movel([-0.957, -0.089, -0.037, angle[0], angle[1], 0])
-        time.sleep(10)
-        robot.movel([-0.957, -0.089, -0.237, angle[0], angle[1], 0])
-        robot.close_gripper()
-        robot.movel([-0.957, -0.089, -0.037, angle[0], angle[1], 0])
-        robot.movel([-0.657, -0.089, -0.037, angle[0], angle[1], 0])
-        robot.movel([-0.657, -0.089, -0.220, angle[0], angle[1], 0])
-        robot.open_gripper()
-        robot.close_gripper()
-        robot.movel([-0.657, -0.089, -0.037, angle[0], angle[1], 0])
-        robot.movel([-0.957, -0.089, -0.037, angle[0], angle[1], 0])
-        robot.movel([-0.957, -0.089, -0.220, angle[0], angle[1], 0])
-        robot.open_gripper()
+        robot.moveJoint([-1.5, -1.5, 0.0, 0, 0, 0])
+        time.sleep(2)
+        robot.moveJoint([1.5, 0.0, 0.0, 0, 0, 0])
+        # robot.close_gripper()
+        # robot.movel([-0.957, -0.089, -0.037, angle[0], angle[1], 0])
+        # robot.movel([-0.657, -0.089, -0.037, angle[0], angle[1], 0])
+        # robot.movel([-0.657, -0.089, -0.220, angle[0], angle[1], 0])
+        # robot.open_gripper()
+        # robot.close_gripper()
+        # robot.movel([-0.657, -0.089, -0.037, angle[0], angle[1], 0])
+        # robot.movel([-0.957, -0.089, -0.037, angle[0], angle[1], 0])
+        # robot.movel([-0.957, -0.089, -0.220, angle[0], angle[1], 0])
+        # robot.open_gripper()
 
 
 
